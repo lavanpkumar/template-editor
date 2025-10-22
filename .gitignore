@@ -1,0 +1,48 @@
+# --- Python cache and compiled files ---
+__pycache__/
+*.py[cod]
+*$py.class
+
+# --- Virtual environments ---
+venv/
+env/
+.venv/
+
+# --- Flask instance & config ---
+instance/
+*.db
+*.sqlite3
+*.sqlite
+*.log
+
+# --- Environment & secrets ---
+.env
+*.env
+
+# --- Editor & system files ---
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+*.swp
+
+# --- PyInstaller / packaging ---
+build/
+dist/
+*.egg-info/
+*.spec
+
+# --- Test and coverage ---
+htmlcov/
+.tox/
+.nox/
+.coverage
+.cache/
+.pytest_cache/
+
+# Elastic Beanstalk Files
+.elasticbeanstalk/*
+!.elasticbeanstalk/*.cfg.yml
+!.elasticbeanstalk/*.global.yml
+/.venv/
+*.pem

@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Template Editor</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <!-- Bootstrap CSS CDN -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body {
+            background-color: #111;
+            color: #fff;
+        }
+        .form-control, .form-control:focus {
+            background-color: #222;
+            color: #fff;
+            border: 1px solid #444;
+        }
+        .instructions {
+            background: #181818;
+            border-radius: 8px;
+            padding: 1.5rem;
+            margin-bottom: 2rem;
+        }
+    </style>
+</head>
+<body>
+    <div class="container py-5">
+        <h1 class="mb-4 text-center">Template Editor</h1>
+        <div class="instructions mb-4">
+            <h5>Instructions</h5>
+            <ul>
+                <li>Paste your template into the text box below.</li>
+                <li>Edit your template as needed.</li>
+                <li>Save or export your template when finished.</li>
+            </ul>
+        </div>
+        <form>
+            <div class="mb-3">
+                <label for="templateBox" class="form-label">Template</label>
+                <textarea class="form-control" id="templateBox" rows="10" placeholder="Paste your template here..." style="color: #fff;"></textarea>
+                <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
+                <div id="matchesContainer" class="mt-4"></div>
+                <div class="mt-2">
+                    <button id="removePlaceholdersBtn" type="button" class="btn btn-sm btn-warning">Remove placeholders</button>
+                </div>
+            </div>
+        </form>
+    </div>
+    <!-- Bootstrap JS (optional) -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        const socket = io();
+        const textarea = document.getElementById('templateBox');
+        const matchesContainer = document.getElementById('matchesContainer');
+
+        // Debounce and suppression settings to avoid re-rendering while typing
+        let emitTimer = null;
+        let suppressRender = false;
+        let suppressTimer = null;
+        const EMIT_DEBOUNCE = 500; // ms
+        const SUPPRESS_TIMEOUT = 800; // ms after last keystroke to re-enable renders
+
+        function emitTextareaUpdateDebounced() {
+            clearTimeout(emitTimer);
+            emitTimer = setTimeout(() => {
+                socket.emit('textarea_update', {text: textarea.value});
+            }, EMIT_DEBOUNCE);
+        }
+
+        // Debounced emit when the textarea itself is edited
+        textarea.addEventListener('input', () => {
+            emitTextareaUpdateDebounced();
+        });
+
+        socket.on('render_matches', (data) => {
+            // If user is actively editing an input, ignore incoming re-renders to avoid
+            // clearing inputs/caret and causing typing to stutter. The debounced emit will
+            // send a final update when typing stops and the server will then re-render.
+            if (suppressRender) return;
+
+            matchesContainer.innerHTML = "";
+
+            if (data.matches.length == 0) {
+                matchesContainer.innerHTML = "<p style='color:#fff;'>No placeholders detected.</p>";
+                return;
+            }
+
+            // Render one input per occurrence and include the occurrence index
+            data.matches.forEach((match, idx) => {
+                const div = document.createElement('div');
+                div.classList.add('mb-2');
+                // set the input's value to the current match content so it reflects the textarea
+                div.innerHTML = `
+                    <label class="form-label">${match}:</label>
+                    <input type="text" class="form-control match-input" data-match="${match}" data-index="${idx}" value="${match}">
+                `;
+                matchesContainer.appendChild(div);
+            });
+        });
+
+        // When an input changes, replace the corresponding nth bracketed occurrence in the textarea
+        // and debounce the server emit. Also suppress incoming re-renders while typing to avoid
+        // interrupting the user's caret.
+        matchesContainer.addEventListener('input', (e) => {
+            const target = e.target;
+            if (!target.classList.contains('match-input')) return;
+
+            const idx = parseInt(target.dataset.index, 10);
+            const newVal = target.value;
+
+            // Suppress server-driven re-renders while the user is actively typing
+            suppressRender = true;
+            clearTimeout(suppressTimer);
+            suppressTimer = setTimeout(() => { suppressRender = false; }, SUPPRESS_TIMEOUT);
+
+            // Find the start/end of the nth occurrence of [ ... ] in the textarea
+            const pattern = /\[(.*?)\]/g;
+            let m;
+            let count = -1;
+            let start = -1;
+            let end = -1;
+            while ((m = pattern.exec(textarea.value)) !== null) {
+                count++;
+                if (count === idx) {
+                    start = m.index; // index of '['
+                    end = pattern.lastIndex; // index after ']'
+                    break;
+                }
+            }
+
+            // If not found (maybe textarea changed dramatically), do nothing
+            if (start === -1) return;
+
+            const before = textarea.value.slice(0, start);
+            const after = textarea.value.slice(end);
+            const replacement = '[' + newVal + ']';
+            textarea.value = before + replacement + after;
+
+            // Debounced emit so server isn't flooded and to allow smooth typing
+            emitTextareaUpdateDebounced();
+        });
+
+        // Remove surrounding brackets from all placeholders in the textarea
+        const removeBtn = document.getElementById('removePlaceholdersBtn');
+        removeBtn.addEventListener('click', () => {
+            // Replace occurrences of [something] with something
+            textarea.value = textarea.value.replace(/\[(.*?)\]/g, '$1');
+            // Emit the update so server and UI re-sync (debounced)
+            emitTextareaUpdateDebounced();
+        });
+    
+    </script>
+</body>
+</html>
