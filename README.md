@@ -2,6 +2,8 @@
 
 A small Flask + Flask-SocketIO app for editing templates with bracketed placeholders.
 
+## Demo
+https://www.loom.com/share/94697c95b974486693c63790d3e2d6eb 
 ## Run locally
 
 1. Create virtualenv and install:
